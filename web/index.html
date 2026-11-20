@@ -1,36 +1,51 @@
 <!DOCTYPE html>
-<title>服务器实时状态</title>
-<meta charset="utf8">
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-
+<title>服务器实时状态</title>
 <link rel="stylesheet" href="stats.css">
 <script src="js/sugar-1.4.1.min.js"></script>
 <script src="js/jquery-2.0.3.min.js"></script>
 <script src="js/reconnecting-websocket.js"></script>
 <script src="js/smoothie.js"></script>
-<script src="js/chroma.min.js"></script>
 <script src="stats.js"></script>
-
+</head>
+<body>
 <main id="charts">
   <header class="intro">
-    <h1>服务器实时状态 <span id="conn" class="conn">连接中…</span></h1>
-    <p>数据来自 Linux 命令 <code>vmstat 1</code>，每秒刷新一次。每组图表下方列出各指标的缩写、中文含义、当前数值和说明。
-       鼠标悬停在指标上可看到 vmstat 官方英文解释。</p>
+    <div class="intro-top">
+      <h1>服务器实时状态</h1>
+      <span id="conn" class="conn"><i class="conn-dot"></i><span class="conn-text">连接中…</span></span>
+      <button id="theme" class="theme-btn" type="button" title="切换主题">主题：自动</button>
+    </div>
+    <p>数据来自 Linux 命令 <code>vmstat 1</code>，每秒刷新一次，图表显示最近约 1 分钟。
+       鼠标移到图表上可查看某一时刻的数值；移到指标上可看到 vmstat 官方英文解释。</p>
   </header>
 
+  <section class="tiles" aria-label="概览">
+    <div class="tile"><div class="tile-label">CPU 使用率</div><div class="tile-value" id="t-cpu">–</div><div class="tile-note">100% − 空闲 id</div></div>
+    <div class="tile"><div class="tile-label">可用内存（约）</div><div class="tile-value" id="t-mem">–</div><div class="tile-note">free + buff + cache</div></div>
+    <div class="tile"><div class="tile-label">IO 等待</div><div class="tile-value" id="t-wa">–</div><div class="tile-note">CPU 空等磁盘的时间</div></div>
+    <div class="tile"><div class="tile-label">运行队列</div><div class="tile-value" id="t-r">–</div><div class="tile-note">排队等 CPU 的进程</div></div>
+  </section>
+
   <section class="chart template">
-    <h2 class="title"></h2>
-    <p class="section-desc"></p>
-    <canvas width="600" height="80"></canvas>
+    <div class="chart-head">
+      <h2 class="title"></h2>
+      <p class="section-desc"></p>
+    </div>
+    <canvas></canvas>
     <ul class="stats">
-        <li class="stat template">
-            <div class="stat-head">
-                <span class="stat-name"></span>
-                <span class="stat-label"></span>
-                <span class="stat-value"></span>
-            </div>
-            <div class="stat-desc"></div>
-        </li>
+      <li class="stat template">
+        <div class="stat-head">
+          <i class="swatch"></i>
+          <span class="stat-name"></span>
+          <span class="stat-label"></span>
+          <span class="stat-value"></span>
+        </div>
+        <div class="stat-desc"></div>
+      </li>
     </ul>
   </section>
 
@@ -45,3 +60,5 @@
     </ul>
   </footer>
 </main>
+</body>
+</html>

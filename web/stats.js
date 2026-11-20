@@ -1,7 +1,5 @@
-var allTimeSeries = {};
-var allValueLabels = {};
-
-// unit: 'kb' 表示 vmstat 输出的单位是 KiB，页面会换算成 MB / GB 显示
+// 每个指标固定使用一个分类色槽（--series-N），顺序固定、不循环
+// unit: 'kb' 表示 vmstat 输出单位是 KiB，页面会换算成 MB / GB 显示
 var descriptions = {
     'Processes': {
         title: '进程 Processes',
@@ -60,6 +58,7 @@ var descriptions = {
     'CPU': {
         title: 'CPU 时间占比',
         desc: 'CPU 时间花在了哪里，单位是百分比，各项加起来约等于 100%。',
+        maxValue: 100,
         stats: {
             'us': { label: '用户态', unit: '%', en: 'Time spent running non-kernel code (user time, including nice time)',
                     desc: '运行普通程序（你的应用、数据库等）所用的时间。' },
@@ -75,122 +74,229 @@ var descriptions = {
     }
 };
 
+var allTimeSeries = {};   // name -> TimeSeries
+var allValueLabels = {};  // name -> { el, unit }
+var charts = [];          // { smoothie, series: [{ ts, slot }] }
+
 function formatValue(value, unit) {
-    if (isNaN(value)) return '-';
+    if (isNaN(value)) return '–';
     if (unit === 'kb') {
         if (value >= 1024 * 1024) return (value / 1024 / 1024).toFixed(2) + ' GB';
         if (value >= 1024) return (value / 1024).toFixed(1) + ' MB';
-        return value + ' KB';
+        return Math.round(value) + ' KB';
     }
-    return value + ' ' + unit;
+    if (unit === '%') return Math.round(value) + '%';
+    return Math.round(value).toLocaleString() + ' ' + unit;
+}
+
+// 坐标轴刻度：数字用紧凑写法
+function axisFormatter(unit) {
+    return function(v) {
+        if (unit === 'kb') return formatValue(v, 'kb');
+        if (unit === '%') return Math.round(v) + '%';
+        if (v >= 10000) return (v / 1000).toFixed(0) + 'K';
+        return String(Math.round(v));
+    };
+}
+
+function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function hexToRgba(hex, alpha) {
+    var h = hex.replace('#', '');
+    var n = parseInt(h, 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + alpha + ')';
+}
+
+function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function(c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+}
+
+function tooltipFormatter(timestamp, data) {
+    var t = new Date(timestamp);
+    var pad = function(n) { return (n < 10 ? '0' : '') + n; };
+    var html = '<div class="tt-time">' + pad(t.getHours()) + ':' + pad(t.getMinutes()) + ':' + pad(t.getSeconds()) + '</div>';
+    for (var i = 0; i < data.length; i++) {
+        var o = data[i].series.options;
+        html += '<div class="tt-row"><i class="swatch" style="background:' + o.strokeStyle + '"></i>' +
+                '<span>' + escapeHtml(o.statName + ' ' + o.statLabel) + '</span>' +
+                '<b>' + escapeHtml(formatValue(data[i].value, o.statUnit)) + '</b></div>';
+    }
+    return html;
+}
+
+// 读取当前主题的颜色并应用到所有图表（主题切换时也会调用）
+function applyTheme() {
+    var surface = cssVar('--surface-1'), grid = cssVar('--grid'),
+        muted = cssVar('--text-muted'), baseline = cssVar('--baseline');
+    charts.forEach(function(c) {
+        var o = c.smoothie.options;
+        o.grid.fillStyle = surface;
+        o.grid.strokeStyle = grid;
+        o.labels.fillStyle = muted;
+        o.tooltipLine.strokeStyle = baseline;
+        c.series.forEach(function(s) {
+            var color = cssVar('--series-' + s.slot);
+            var opts = c.smoothie.getTimeSeriesOptions(s.ts);
+            opts.strokeStyle = color;
+            opts.fillStyle = hexToRgba(color, 0.10);
+        });
+    });
+}
+
+function initCharts() {
+    Object.each(descriptions, function(sectionName, section) {
+        var el = $('.chart.template').clone().removeClass('template').insertBefore('footer.tips');
+        el.find('.title').text(section.title);
+        el.find('.section-desc').text(section.desc);
+
+        var firstUnit = Object.values(section.stats)[0].unit;
+        var smoothie = new SmoothieChart({
+            responsive: true,
+            millisPerPixel: 100,           // 约 1 分钟的窗口
+            interpolation: 'bezier',
+            minValue: 0,
+            maxValue: section.maxValue,
+            maxValueScale: 1.1,
+            scaleSmoothing: 0.2,
+            grid: {
+                lineWidth: 1,
+                millisPerLine: 10000,      // 每 10 秒一条竖线
+                verticalSections: 4,
+                borderVisible: false,
+                sharpLines: true
+            },
+            labels: {
+                fontSize: 11,
+                fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+                precision: 0
+            },
+            yMaxFormatter: axisFormatter(firstUnit),
+            yMinFormatter: axisFormatter(firstUnit),
+            tooltip: true,
+            tooltipLine: { lineWidth: 1 },
+            tooltipFormatter: tooltipFormatter
+        });
+        smoothie.streamTo(el.find('canvas').get(0), 1000);
+
+        var chart = { smoothie: smoothie, series: [] };
+        var slot = 1;
+        Object.each(section.stats, function(name, info) {
+            var ts = new TimeSeries();
+            smoothie.addTimeSeries(ts, {
+                lineWidth: 2,
+                statName: name,
+                statLabel: info.label,
+                statUnit: info.unit
+            });
+            chart.series.push({ ts: ts, slot: slot });
+            allTimeSeries[name] = ts;
+
+            var row = el.find('.stat.template').clone().removeClass('template').appendTo(el.find('.stats'));
+            row.attr('title', name + ': ' + info.en);
+            row.find('.swatch').css('background', 'var(--series-' + slot + ')');
+            row.find('.stat-name').text(name);
+            row.find('.stat-label').text(info.label);
+            row.find('.stat-desc').text(info.desc);
+            allValueLabels[name] = { el: row.find('.stat-value'), unit: info.unit };
+            slot++;
+        });
+        charts.push(chart);
+    });
+    applyTheme();
+}
+
+function updateTiles(s) {
+    if (!isNaN(s.id)) $('#t-cpu').text((100 - s.id) + '%');
+    if (!isNaN(s.free)) $('#t-mem').text(formatValue(s.free + (s.buff || 0) + (s.cache || 0), 'kb'));
+    if (!isNaN(s.wa)) $('#t-wa').text(s.wa + '%');
+    if (!isNaN(s.r)) $('#t-r').text(s.r + ' 个');
+}
+
+function receiveStats(stats) {
+    var now = Date.now();
+    Object.each(stats, function(name, value) {
+        var ts = allTimeSeries[name];
+        if (ts) {
+            ts.append(now, value);
+            var label = allValueLabels[name];
+            label.el.text(formatValue(value, label.unit));
+        }
+    });
+    updateTiles(stats);
+}
+
+function setConn(state, text) {
+    $('#conn').attr('class', 'conn ' + state).find('.conn-text').text(text);
 }
 
 function streamStats() {
-
     var ws = new ReconnectingWebSocket(
         (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/');
     var lineCount;
     var colHeadings;
 
     ws.onopen = function() {
-        console.log('connect');
-        $('#conn').text('已连接').attr('class', 'conn ok');
+        setConn('ok', '已连接');
         lineCount = 0;
     };
 
     ws.onclose = function() {
-        console.log('disconnect');
-        $('#conn').text('已断开，重连中…').attr('class', 'conn bad');
+        setConn('bad', '已断开，重连中…');
     };
 
     ws.onmessage = function(e) {
         switch (lineCount++) {
-            case 0: // ignore first line
+            case 0: // 第一行是分组标题，忽略
                 break;
-
-            case 1: // column headings
+            case 1: // 列名
                 colHeadings = e.data.trim().split(/ +/);
                 break;
-
-            default: // subsequent lines
+            default:
                 var colValues = e.data.trim().split(/ +/);
                 var stats = {};
                 for (var i = 0; i < colHeadings.length; i++) {
-                    stats[colHeadings[i]] = parseInt(colValues[i]);
+                    stats[colHeadings[i]] = parseInt(colValues[i], 10);
                 }
                 receiveStats(stats);
         }
     };
 }
 
-function initCharts() {
-    Object.each(descriptions, function(sectionName, section) {
-        var el = $('.chart.template').clone().removeClass('template').insertBefore('footer.tips');
+// 主题：自动（跟随系统）/ 浅色 / 深色，记在浏览器本地
+var THEMES = ['auto', 'light', 'dark'];
+var THEME_NAMES = { auto: '自动', light: '浅色', dark: '深色' };
 
-        el.find('.title').text(section.title);
-        el.find('.section-desc').text(section.desc);
-
-        var smoothie = new SmoothieChart({
-            grid: {
-                sharpLines: true,
-                verticalSections: 5,
-                strokeStyle: 'rgba(119,119,119,0.45)',
-                millisPerLine: 1000
-            },
-            minValue: 0,
-            labels: {
-                disabled: true
-            }
-        });
-        var canvas = el.find('canvas').get(0);
-        canvas.width = Math.floor(el.width());
-        smoothie.streamTo(canvas, 1000);
-
-        var colors = chroma.brewer['Pastel2'];
-        var index = 0;
-        Object.each(section.stats, function(name, info) {
-            var color = colors[index++];
-
-            var timeSeries = new TimeSeries();
-            smoothie.addTimeSeries(timeSeries, {
-                strokeStyle: color,
-                fillStyle: chroma(color).darken().alpha(0.5).css(),
-                lineWidth: 3
-            });
-            allTimeSeries[name] = timeSeries;
-
-            var statLine = el.find('.stat.template').clone().removeClass('template').appendTo(el.find('.stats'));
-            statLine.attr('title', name + ': ' + info.en);
-            statLine.find('.stat-name').text(name).css('color', color);
-            statLine.find('.stat-label').text(info.label);
-            statLine.find('.stat-desc').text(info.desc);
-            allValueLabels[name] = { el: statLine.find('.stat-value').css('color', color), unit: info.unit };
-        });
-    });
+function setTheme(theme) {
+    if (theme === 'auto') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', theme);
+    $('#theme').text('主题：' + THEME_NAMES[theme]).data('theme', theme);
+    try { localStorage.setItem('vmstats-theme', theme); } catch (e) {}
+    applyTheme();
 }
 
-function receiveStats(stats) {
-    Object.each(stats, function(name, value) {
-        var timeSeries = allTimeSeries[name];
-        if (timeSeries) {
-            timeSeries.append(Date.now(), value);
-            var label = allValueLabels[name];
-            label.el.text(formatValue(value, label.unit));
-        }
+function initTheme() {
+    var saved = 'auto';
+    try { saved = localStorage.getItem('vmstats-theme') || 'auto'; } catch (e) {}
+    if (THEMES.indexOf(saved) < 0) saved = 'auto';
+    setTheme(saved);
+    $('#theme').on('click', function() {
+        var cur = $(this).data('theme') || 'auto';
+        setTheme(THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length]);
     });
-}
-
-// 窗口尺寸变化时（例如两栏/单栏切换），让图表宽度跟随所在栏
-function resizeCharts() {
-    $('#charts > section.chart:not(.template)').each(function() {
-        var canvas = $(this).find('canvas').get(0);
-        var w = Math.floor($(this).width());
-        if (w > 0 && canvas.width !== w) canvas.width = w;
-    });
+    if (window.matchMedia) {
+        var mq = window.matchMedia('(prefers-color-scheme: dark)');
+        var onChange = function() { applyTheme(); };
+        if (mq.addEventListener) mq.addEventListener('change', onChange);
+        else if (mq.addListener) mq.addListener(onChange);
+    }
 }
 
 $(function() {
     initCharts();
+    initTheme();
     streamStats();
-    $(window).on('resize', resizeCharts.debounce(150));
 });
