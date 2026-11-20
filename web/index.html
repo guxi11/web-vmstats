@@ -25,7 +25,7 @@
 
   <section class="tiles" aria-label="概览">
     <div class="tile"><div class="tile-label">CPU 使用率</div><div class="tile-value" id="t-cpu">–</div><div class="tile-note">100% − 空闲 id</div></div>
-    <div class="tile"><div class="tile-label">可用内存（约）</div><div class="tile-value" id="t-mem">–</div><div class="tile-note">free + buff + cache</div></div>
+    <div class="tile"><div class="tile-label">已用内存</div><div class="tile-value" id="t-mem">–</div><div class="tile-note" id="t-mem-note">与 free 命令的 used 一致</div></div>
     <div class="tile"><div class="tile-label">IO 等待</div><div class="tile-value" id="t-wa">–</div><div class="tile-note">CPU 空等磁盘的时间</div></div>
     <div class="tile"><div class="tile-label">运行队列</div><div class="tile-value" id="t-r">–</div><div class="tile-note">排队等 CPU 的进程</div></div>
   </section>

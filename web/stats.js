@@ -15,6 +15,8 @@ var descriptions = {
         title: '内存 Memory',
         desc: '内存使用情况（vmstat 原始单位为 KB，这里已换算）。Linux 会把空闲内存用作缓存，free 小通常是正常的。',
         stats: {
+            'used':  { label: '已用内存', unit: 'kb', en: 'Used memory = total - free - buff - cache (same as `free`)',
+                       desc: '程序实际占用的内存 = 总内存 − 空闲 − 缓冲区 − 页缓存，与 free 命令的 used 一致。' },
             'swpd':  { label: '已用交换', unit: 'kb', en: 'Amount of virtual memory used',
                        desc: '已经被放到硬盘交换区（swap）里的内存量。为 0 表示没有用到 swap。' },
             'free':  { label: '空闲内存', unit: 'kb', en: 'Amount of idle memory',
@@ -211,13 +213,21 @@ function initCharts() {
 
 function updateTiles(s) {
     if (!isNaN(s.id)) $('#t-cpu').text((100 - s.id) + '%');
-    if (!isNaN(s.free)) $('#t-mem').text(formatValue(s.free + (s.buff || 0) + (s.cache || 0), 'kb'));
+    if (!isNaN(s.used) && s.total > 0) {
+        $('#t-mem').text(formatValue(s.used, 'kb'));
+        $('#t-mem-note').text('共 ' + formatValue(s.total, 'kb') + '，占 ' + Math.round(s.used / s.total * 100) + '%' +
+            (isNaN(s.avail) ? '' : '，可用 ' + formatValue(s.avail, 'kb')));
+    }
     if (!isNaN(s.wa)) $('#t-wa').text(s.wa + '%');
     if (!isNaN(s.r)) $('#t-r').text(s.r + ' 个');
 }
 
 function receiveStats(stats) {
     var now = Date.now();
+    // total / avail 由 vmstat-mem.sh 追加；vmstat 本身不提供总内存
+    if (!isNaN(stats.total)) {
+        stats.used = Math.max(0, stats.total - stats.free - stats.buff - stats.cache);
+    }
     Object.each(stats, function(name, value) {
         var ts = allTimeSeries[name];
         if (ts) {

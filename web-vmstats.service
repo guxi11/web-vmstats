@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/develop/web-vmstats
-ExecStart=/home/ubuntu/develop/web-vmstats/websocketd --port=9231 --staticdir=web /usr/bin/vmstat -n 1
+ExecStart=/home/ubuntu/develop/web-vmstats/websocketd --port=9231 --staticdir=web /home/ubuntu/develop/web-vmstats/vmstat-mem.sh
 Restart=on-failure
 RestartSec=3
 
