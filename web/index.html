@@ -1,6 +1,7 @@
 <!DOCTYPE html>
-<title>Stats</title>
+<title>服务器实时状态</title>
 <meta charset="utf8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
 <link rel="stylesheet" href="stats.css">
 <script src="js/sugar-1.4.1.min.js"></script>
@@ -11,14 +12,36 @@
 <script src="stats.js"></script>
 
 <main id="charts">
+  <header class="intro">
+    <h1>服务器实时状态 <span id="conn" class="conn">连接中…</span></h1>
+    <p>数据来自 Linux 命令 <code>vmstat 1</code>，每秒刷新一次。每组图表下方列出各指标的缩写、中文含义、当前数值和说明。
+       鼠标悬停在指标上可看到 vmstat 官方英文解释。</p>
+  </header>
+
   <section class="chart template">
     <h2 class="title"></h2>
+    <p class="section-desc"></p>
     <canvas width="600" height="80"></canvas>
     <ul class="stats">
         <li class="stat template">
-            <span class="stat-name"></span>
-            <span class="stat-value"></span>
+            <div class="stat-head">
+                <span class="stat-name"></span>
+                <span class="stat-label"></span>
+                <span class="stat-value"></span>
+            </div>
+            <div class="stat-desc"></div>
         </li>
     </ul>
   </section>
+
+  <footer class="tips">
+    <h2>怎么判断服务器是否健康？</h2>
+    <ul>
+      <li><b>CPU 繁忙：</b>“空闲 id” 长期低于 20%，或 “运行队列 r” 长期大于 CPU 核数，说明 CPU 不够用。</li>
+      <li><b>内存紧张：</b>Linux 会尽量把空闲内存拿来做缓存，所以 “free” 小不代表内存不够。
+          真正该关心的是 “换入 si / 换出 so” 是否持续大于 0 —— 那说明物理内存已经不够、开始用硬盘顶替了。</li>
+      <li><b>磁盘瓶颈：</b>“IO 等待 wa” 持续偏高（比如 &gt; 10%），或 “阻塞进程 b” 经常不为 0，说明程序在等磁盘。</li>
+      <li><b>云主机被抢占：</b>“被偷 st” 持续偏高，说明宿主机上的其它虚拟机在抢 CPU，属于云厂商侧的问题。</li>
+    </ul>
+  </footer>
 </main>

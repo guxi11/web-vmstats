@@ -1,0 +1,15 @@
+[Unit]
+Description=Web VMStat - live Linux system stats in the browser
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/develop/web-vmstats
+ExecStart=/home/ubuntu/develop/web-vmstats/websocketd --port=9231 --staticdir=web /usr/bin/vmstat -n 1
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

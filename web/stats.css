@@ -1,42 +1,106 @@
 .template {
     display: none !important;
 }
-* {
-  cursor: default;
-}
 body {
     background-color: #333;
     color: #eee;
-    font-family: "helvetica neue", helvetica, arial, sans-serif;
-}
-h2 {
-    margin: 40px 0 0 0;
-    font-weight: 300;
+    font-family: "helvetica neue", helvetica, arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+    margin: 0;
+    padding: 0 16px 40px;
 }
 main {
-    width: 600px;
+    max-width: 1240px;
     margin: auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 40px;
 }
-section {
-    clear: left;
+main > header,
+main > footer {
+    grid-column: 1 / -1;
+}
+main > section {
+    min-width: 0;
+}
+@media (max-width: 800px) {
+    main {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+h1 {
+    font-weight: 300;
+    font-size: 24px;
+    margin: 24px 0 8px;
+}
+h2 {
+    margin: 36px 0 4px 0;
+    font-weight: 300;
+}
+code {
+    background: #444;
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+.intro p, .section-desc, .tips li {
+    color: #bbb;
+    font-size: 13px;
+    line-height: 1.6;
+}
+.section-desc {
+    margin: 0 0 8px;
+}
+.conn {
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    vertical-align: middle;
+    background: #555;
+}
+.conn.ok  { background: #2e6b3a; }
+.conn.bad { background: #8a3434; }
+canvas {
+    display: block;
+    max-width: 100%;
 }
 .stats {
-    margin: 0;
+    margin: 8px 0 0;
+    padding: 0;
 }
 .stat {
     list-style-type: none;
-    float: left;
     margin: 0;
-    width: 130px;
-    font-size: 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid #3d3d3d;
+    cursor: help;
+}
+.stat-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 14px;
 }
 .stat-name {
-    display: inline-block;
-    text-align: right;
-    width: 50px;
-    margin-right: 5px;
+    font-family: Menlo, Consolas, monospace;
+    font-weight: bold;
+    min-width: 44px;
+}
+.stat-label {
+    color: #ddd;
 }
 .stat-value {
+    margin-left: auto;
     font-weight: bold;
+    font-variant-numeric: tabular-nums;
 }
-
+.stat-desc {
+    color: #999;
+    font-size: 12px;
+    margin: 2px 0 0 52px;
+    line-height: 1.5;
+}
+.tips ul {
+    padding-left: 18px;
+}
+.tips b {
+    color: #eee;
+}
